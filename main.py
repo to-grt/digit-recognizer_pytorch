@@ -1,55 +1,59 @@
-from utils import *
-from Model import Model
+import torch
+
+from functions.test import test
+from functions.train import train
+from functions.infer import infer
+from dataset.dataset import get_data
+
+
+BATCH_SIZE = 16
+EPOCHS = 20
+FUNCTIONS = ["train", "test", "infer", "train_test", "train_infer", "test_infer", "full"]
 
 
 def main():
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = Model(device)
+    """
+    Select here the function you want to run, note that testing from a saved model
+    might be biased. If you want to test from a saved model, make sure to have the model
+    saved in the ./model_saves folder.
+    For normal purposes, use the "full" function.
+    """
+    function = "full"
+    if function not in FUNCTIONS:
+        print("Invalid function")
+        return
 
-    train_loader, val_loader = from_csv_to_loader(model=model, path='train.csv', is_train=True, prints=True)
-    test_loader = from_csv_to_loader(model=model, path='test.csv', is_train=False, prints=True)
+    print(f"Running \"{function}\" function")
+    train_loader, validation_loader, test_loader, inference = get_data(BATCH_SIZE)
 
-    for epoch in range(model.NB_EPOCHS):
+    match function:
+        case "train":
+            train(train_loader, validation_loader, EPOCHS, device)
+        case "test":
+            test(test_loader, device)
+        case "infer":
+            infer(inference, device)
+        case "train_test":
+            train(train_loader, validation_loader, EPOCHS, device)
+            test(test_loader, device)
+        case "train_infer":
+            train(train_loader, validation_loader, EPOCHS, device)
+            infer(inference, device)
+        case "test_infer":
+            test(test_loader, device)
+            infer(inference, device)
+        case "full":
+            train(train_loader, validation_loader, EPOCHS, device)
+            test(test_loader, device)
+            infer(inference, device)
+        case _:
+            print("Invalid function")
 
-        loss = None
-        val_loss = None
-        batch_index = None
-
-        model.train()
-        for batch_index, (batch_x, batch_y) in enumerate(train_loader):
-            batch_x, batch_y = batch_x.to(device), batch_y.to(device)
-
-            outputs = model(batch_x)
-            loss = model.loss(outputs, batch_y)
-
-            model.optimizer.zero_grad()
-            loss.backward()
-            model.optimizer.step()
-
-        model.eval()
-        correct = 0
-        total = 0
-
-        with torch.no_grad():
-            for batch_x, batch_y in val_loader:
-                batch_x, batch_y = batch_x.to(device), batch_y.to(device)
-
-                outputs = model(batch_x)
-                val_loss = model.loss(outputs, batch_y)
-                predicted = torch.argmax(outputs, dim=1)
-                targets = torch.argmax(batch_y, dim=1)
-                correct += (predicted == targets).sum().item()
-                total += model.BATCH_SIZE
-
-        accuracy = 100 * correct / total
-
-        print(f"Epoch [{epoch + 1}/{model.NB_EPOCHS}],  "
-              f"Step [{batch_index + 1}/{len(train_loader)}],  "
-              f"Loss: {loss.item():.4f},  "
-              f"Val Loss: {val_loss.item():.4f},  "
-              f"Val Accuracy: {accuracy:.2f}%")
+    del train_loader, validation_loader, test_loader, inference
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"Using {device} device")
     main()
